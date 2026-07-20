@@ -1,75 +1,121 @@
-# React + TypeScript + Vite
+# Hamsafar (ҳамсафар)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> **ҳамсафар** — 타직어로 "여행의 동반자(fellow traveler)"
 
-Currently, two official plugins are available:
+타지키스탄의 오프라인 합승 택시(share taxi) 승강장을 온라인으로 옮긴 모바일 웹 서비스 프로토타입입니다.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 배경 · 문제
 
-## React Compiler
+두샨베(Душанбе)에서 호루그(Хоруғ) 같은 관광지로 가려면 합승 택시를 타야 하는데, 예약 방법이 전부 오프라인입니다.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- 출발 **하루 전날** 택시 승강장(автостансия)에 직접 찾아가야 함
+- 기사님을 직접 컨택해서 자리를 잡고, 가격을 흥정해야 함
+- 외국인 관광객은 언어 장벽(타직어/러시아어) 때문에 정보 접근이 더 어렵고 바가지 위험이 있음
+- 차는 좌석이 다 차야 출발하므로, 언제 출발할지 알기 어려움
 
-## Expanding the ESLint configuration
+**Hamsafar는 전날 승강장에 가는 수고를 없애는 것이 목표입니다.**
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 핵심 기능 3가지
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### 1. 예약 정보 제공
+- 출발 승강장 정보: 이름 + Google Maps 링크 (예: Автостансияи Бадахшон)
+- 기사 정보: 이름, 평점, 운행 횟수, **전화번호 (탭하면 바로 통화)**
+- 차량 정보: 차종, 연식, 번호판, 에어컨 여부, 짐 적재 개수
+- 가격: **좌석 위치별 가격** (앞 400 / 중간 350 / 뒤 300 сомонӣ) — 차량·기사에 따라 다름, 현지인과 동일한 정찰제
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 2. 예약 현황
+- 승객: 차량별 좌석 충원 현황("3 of 6 filled"), 좌석맵에서 빈자리/선점된 자리 확인
+- 기사: 운행 리스트에서 실시간 충원 현황(3/6 пур), 새 예약 요청 알림, 만차 시 총수익 요약
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 3. 채팅
+- 승객 ↔ 기사 1:1 채팅
+- 메시지마다 **자동 번역** 표시 (영어 ↔ 타직어) — 언어 장벽 해소
+- 채팅 화면에서 바로 전화 연결 가능
 
+## 화면 구성
+
+### 승객 플로우 (영어 UI)
+
+| 화면 | 이름 | 설명 |
+|------|------|------|
+| P1 | Search | 출발/도착/날짜/인원 검색, 가격 정찰제 안내, 인기 노선 |
+| P2 | Results | 차량 목록 — 기사·차량·가격·좌석 충원 현황 |
+| P3 | Choose your seat | 좌석맵에서 자리 선택(위치별 가격), 승강장 지도, 기사 통화 |
+| P4 | Ticket | 예약 확정 티켓 — 어디서/누구와/얼마 (현장 현금 결제) |
+| P5 | Chat | 기사와 채팅 (자동 번역) |
+
+### 기사 플로우 (타직어 UI + 영어 캡션)
+
+| 화면 | 이름 | 설명 |
+|------|------|------|
+| D0 | Ронанда 홈 | 예약 생성 / 예약 현황 중 선택 |
+| D1 | Масири нав | **예약 생성** — 노선, 날짜(칩 + 캘린더), 좌석 수, 차량 정보(에어컨·연식·짐), 좌석별 가격 설정 |
+| D2 | Сафарҳои ман | **예약 현황 리스트** — 진행 중/완료된 운행, 충원 현황, 새 요청 배지 |
+| D3 | Дархостҳо | **예약 수락 확인** — 좌석맵 + 승객 요청 수락/거절 |
+| D4 | Chat | 승객과 채팅 (자동 번역) |
+| D5 | Мошин пур шуд | 만차 완료 — 수익 요약, 동승자 목록, 운행 시작 |
+
+## 언어 정책
+
+- 지명은 항상 **타직어 (영어)** 병기: Душанбе (Dushanbe), Хоруғ (Khorog)
+- 승객 UI는 영어, 기사 UI는 타직어 + 영어 캡션
+- 채팅은 자동 번역 전제 (프로토타입에서는 목업 데이터)
+
+## 실행 방법
+
+```bash
+npm install
+npm run dev      # 개발 서버 (http://localhost:5173)
+npm run build    # 프로덕션 빌드
+npm run lint     # ESLint
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+모바일 우선 레이아웃(최대 430px)이므로 브라우저 개발자 도구의 모바일 뷰나 실제 폰에서 보는 것을 권장합니다.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 기술 스택
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- React 19 + TypeScript
+- Vite
+- 순수 CSS (CSS 변수 기반 디자인 토큰, 라이브러리 없음)
+
+## 프로젝트 구조
 
 ```
+src/
+├── App.tsx                     # 앱 셸: 역할 선택 → 승객/기사 플로우 분기
+├── App.css                     # 전체 스타일 (디자인 토큰: App.css 상단 index.css 참고)
+├── index.css                   # 리셋 + CSS 변수(색상 팔레트)
+├── data.ts                     # 공용 타입·상수 (도시명, 좌석 가격, 목업 데이터)
+│
+├── components/                 # 공용 컴포넌트
+│   ├── RoleSelect.tsx          # 랜딩 — 승객/기사 역할 선택
+│   ├── ChatScreen.tsx          # 채팅 화면 (승객·기사 공용, 자동 번역 말풍선)
+│   ├── Calendar.tsx            # 월 캘린더 날짜 선택 (타직어 라벨)
+│   ├── Dots.tsx                # 좌석 충원 점 표시
+│   ├── CheckBadge.tsx          # 확정/완료 체크 아이콘
+│   ├── PhoneIcon.tsx           # 전화 아이콘
+│   └── Mountains.tsx           # 파미르 산맥 장식 배경
+│
+├── passenger/                  # 승객 플로우
+│   ├── PassengerFlow.tsx       # 화면 전환 + 상태 관리
+│   ├── SearchScreen.tsx        # P1 검색
+│   ├── ResultsScreen.tsx       # P2 차량 목록
+│   ├── SeatSelectScreen.tsx    # P3 좌석 선택
+│   └── TicketScreen.tsx        # P4 티켓
+│
+└── driver/                     # 기사 플로우
+    ├── DriverFlow.tsx          # 화면 전환 + 상태 관리 (가격→수익 연동)
+    ├── DriverHome.tsx          # D0 기사 홈
+    ├── AddRouteScreen.tsx      # D1 예약 생성
+    ├── RoutesListScreen.tsx    # D2 예약 현황 리스트
+    ├── RequestsScreen.tsx      # D3 예약 수락 확인
+    └── CarFullScreen.tsx       # D5 만차 완료
+```
+
+## 프로토타입 참고사항
+
+- 모든 데이터는 목업(하드코딩)입니다 — 백엔드/DB 없음 (`src/data.ts`)
+- 결제는 온라인이 아니라 **현장 현금 결제** 전제 (현지 관행 반영)
+- 기사 D1에서 설정한 좌석별 가격은 D2 좌석맵, D3 요청 카드, D5 수익 계산에 실시간 반영됩니다
+- 전화 버튼은 `tel:` 링크라 실제 모바일 기기에서 전화 앱이 열립니다
+- 디자인 목업: `hamsafar_passenger_flow.svg`, `hamsafar_driver_flow.svg` 기반
