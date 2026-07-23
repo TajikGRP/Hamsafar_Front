@@ -1,21 +1,27 @@
 import Dots from '../components/Dots'
+import { fmtDateTime } from '../api'
+import type { RideScheduleResponse } from '../api'
 
-/* D2 · Сафарҳои ман — booking status list (active + past routes) */
+const STATUS_TJ: Record<string, string> = {
+  OPEN: 'Кушода',
+  CLOSED: 'Пӯшида',
+  DEPARTED: 'Рафт',
+  COMPLETED: 'Анҷом ёфт',
+  CANCELLED: 'Бекор шуд',
+}
+
+/* D2 · Сафарҳои ман — real schedules from the backend */
 export default function RoutesListScreen({
-  approved,
-  hasNewRequest,
-  dateLabel,
-  year,
+  schedules,
+  loading,
   onBack,
-  onOpenActive,
+  onOpen,
   onAddRoute,
 }: {
-  approved: boolean
-  hasNewRequest: boolean
-  dateLabel: string
-  year: number
+  schedules: RideScheduleResponse[]
+  loading: boolean
   onBack: () => void
-  onOpenActive: () => void
+  onOpen: (s: RideScheduleResponse) => void
   onAddRoute: () => void
 }) {
   return (
@@ -30,38 +36,55 @@ export default function RoutesListScreen({
         </div>
       </div>
 
-      <button className="card route-card" onClick={onOpenActive}>
-        <div className="route-line">
-          <strong>Душанбе (Dushanbe) → Хоруғ (Khorog)</strong>
-          <span className="pill-teal">{approved ? '6/6' : '3/6'} пур</span>
-        </div>
-        <span className="route-sub">
-          {dateLabel} · Toyota Land Cruiser · {year}
-        </span>
-        <Dots filled={approved ? 6 : 3} total={6} />
-        {hasNewRequest && (
-          <span className="badge-amber">1 дархости нав · 1 new request ›</span>
-        )}
-        {approved && (
-          <span className="route-done">Мошин пур шуд ✓ · Car is full</span>
-        )}
-      </button>
+      {loading && <p className="footer-note">Бор мешавад… · Loading…</p>}
 
-      <div className="card route-card done">
-        <div className="route-line">
-          <strong>Душанбе (Dushanbe) → Кӯлоб (Kulob)</strong>
-          <span className="pill-gray">Анҷом ёфт</span>
-        </div>
-        <span className="route-sub">15 июл · 7/7 пур · 2 450 сомонӣ</span>
-      </div>
+      {!loading && schedules.length === 0 && (
+        <p className="footer-note">
+          Ҳоло сафар нест.
+          <br />
+          <span className="muted">No routes yet — add your first one.</span>
+        </p>
+      )}
 
-      <div className="card route-card done">
-        <div className="route-line">
-          <strong>Душанбе (Dushanbe) → Хоруғ (Khorog)</strong>
-          <span className="pill-gray">Анҷом ёфт</span>
-        </div>
-        <span className="route-sub">11 июл · 6/6 пур · 2 050 сомонӣ</span>
-      </div>
+      {schedules.map((s) => {
+        const filled = Number(s.approvedPassengerCount)
+        const total = Number(s.maxPassengerCount)
+        const pending = Number(s.pendingPassengerCount)
+        const done = s.status !== 'OPEN'
+        const full = s.remainingPassengerCount === 0
+
+        return (
+          <button
+            key={s.scheduleId}
+            className={`card route-card${done ? ' done' : ''}`}
+            onClick={() => onOpen(s)}
+          >
+            <div className="route-line">
+              <strong>{s.title ?? `${s.meetingAddress} → ${s.destinationAddress}`}</strong>
+              {done ? (
+                <span className="pill-gray">{STATUS_TJ[s.status] ?? s.status}</span>
+              ) : (
+                <span className="pill-teal">
+                  {filled}/{total} пур
+                </span>
+              )}
+            </div>
+            <span className="route-sub">
+              {fmtDateTime(s.meetingAt)} · {s.fareAmount} сомонӣ / ҷой
+            </span>
+            <Dots filled={filled} total={total} />
+            {pending > 0 && (
+              <span className="badge-amber">
+                {pending} дархости нав · {pending} new request
+                {pending > 1 ? 's' : ''} ›
+              </span>
+            )}
+            {full && !done && (
+              <span className="route-done">Мошин пур шуд ✓ · Car is full</span>
+            )}
+          </button>
+        )
+      })}
 
       <button className="add-route" onClick={onAddRoute}>
         + Масири нав · Add route

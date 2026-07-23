@@ -1,57 +1,177 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import ChatScreen from '../components/ChatScreen'
 import DriverHome from './DriverHome'
 import AddRouteScreen from './AddRouteScreen'
 import RoutesListScreen from './RoutesListScreen'
 import RequestsScreen from './RequestsScreen'
 import CarFullScreen from './CarFullScreen'
-import { TJ_MONTHS } from '../data'
-import type { SeatPrices } from '../data'
+import { standFor } from '../data'
+import {
+  approveJoin,
+  createSchedule,
+  ensureDemoDriver,
+  getDriverSchedules,
+  getSchedule,
+  getScheduleJoins,
+  rejectJoin,
+  toLocalDateTimeParam,
+} from '../api'
+import type {
+  DriverResponse,
+  RideJoinResponse,
+  RideScheduleResponse,
+} from '../api'
 
 /* Driver flow (Tajik UI · EN captions):
-   D0 Home → D1 Add route / D2 My routes → D3 Requests → D4 Chat → D5 Car full */
+   D0 Home → D1 Add route / D2 My routes → D3 Requests → D4 Chat (mock) → D5 Car full */
 export default function DriverFlow({ onHome }: { onHome: () => void }) {
   const [screen, setScreen] = useState<0 | 1 | 2 | 3 | 4 | 5>(0)
-  const [seats, setSeats] = useState(6)
-  const [dateChip, setDateChip] = useState(0)
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [requestGone, setRequestGone] = useState(false)
-  const [approved, setApproved] = useState(false)
-  const [ac, setAc] = useState(true)
-  const [year, setYear] = useState(2018)
-  const [bags, setBags] = useState(4)
-  const [prices, setPrices] = useState<SeatPrices>({
-    front: 400,
-    m1: 350,
-    b2: 300,
-  })
 
-  const dateLabel =
-    dateChip === 0
-      ? 'Имрӯз'
-      : dateChip === 1
-        ? 'Фардо'
-        : selectedDate
-          ? `${selectedDate.getDate()} ${TJ_MONTHS[selectedDate.getMonth()].toLowerCase()}`
-          : 'Дигар рӯз'
+  const [driver, setDriver] = useState<DriverResponse | null>(null)
+  const [driverError, setDriverError] = useState<string | null>(null)
 
-  const bumpPrice = (k: keyof SeatPrices, d: number) =>
-    setPrices((p) => ({ ...p, [k]: Math.max(50, p[k] + d) }))
+  const [schedules, setSchedules] = useState<RideScheduleResponse[]>([])
+  const [schedulesLoading, setSchedulesLoading] = useState(false)
 
-  // 1 front + 3 middle + 2 back seats
-  const earnings = prices.front + 3 * prices.m1 + 2 * prices.b2
+  const [selected, setSelected] = useState<RideScheduleResponse | null>(null)
+  const [joins, setJoins] = useState<RideJoinResponse[]>([])
+  const [joinsLoading, setJoinsLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [busyJoinId, setBusyJoinId] = useState<number | null>(null)
 
-  const hasNewRequest = !requestGone && !approved
+  const [publishing, setPublishing] = useState(false)
+  const [publishError, setPublishError] = useState<string | null>(null)
 
-  const approve = () => {
-    setApproved(true)
-    setTimeout(() => setScreen(5), 700)
+  const loadSchedules = useCallback(async (driverId: number) => {
+    setSchedulesLoading(true)
+    try {
+      const page = await getDriverSchedules(driverId)
+      setSchedules(page.content)
+    } catch {
+      /* list stays as-is */
+    } finally {
+      setSchedulesLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const d = await ensureDemoDriver()
+        if (cancelled) return
+        setDriver(d)
+        await loadSchedules(d.driverId)
+      } catch (e) {
+        if (!cancelled) {
+          setDriverError(
+            e instanceof Error ? e.message : 'Could not reach the server.',
+          )
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [loadSchedules])
+
+  const pendingCount = schedules.reduce(
+    (sum, s) => sum + Number(s.pendingPassengerCount),
+    0,
+  )
+
+  const publish = async (opts: {
+    fromCity: string
+    toCity: string
+    date: Date
+    hour: number
+    price: number
+    description: string
+  }) => {
+    if (!driver) return
+    setPublishing(true)
+    setPublishError(null)
+    try {
+      const meeting = new Date(opts.date)
+      meeting.setHours(opts.hour, 0, 0, 0)
+      const from = standFor(opts.fromCity)
+      const to = standFor(opts.toCity)
+      await createSchedule(driver.driverId, {
+        title: `${opts.fromCity} → ${opts.toCity}`,
+        meetingAt: toLocalDateTimeParam(meeting),
+        meetingAddress: from.address,
+        meetingPlaceName: from.placeName,
+        destinationAddress: opts.toCity,
+        destinationPlaceName: to.placeName,
+        fareAmount: opts.price,
+        description: opts.description,
+      })
+      await loadSchedules(driver.driverId)
+      setScreen(2)
+    } catch (e) {
+      setPublishError(
+        e instanceof Error ? e.message : 'Could not publish the route.',
+      )
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  const openSchedule = async (s: RideScheduleResponse) => {
+    if (!driver) return
+    setSelected(s)
+    setActionError(null)
+    setScreen(Number(s.remainingPassengerCount) === 0 ? 5 : 3)
+    setJoinsLoading(true)
+    try {
+      const page = await getScheduleJoins(s.scheduleId, driver.driverId)
+      setJoins(page.content)
+    } catch {
+      setJoins([])
+    } finally {
+      setJoinsLoading(false)
+    }
+  }
+
+  const refreshSelected = async (scheduleId: number) => {
+    if (!driver) return null
+    const [fresh, page] = await Promise.all([
+      getSchedule(scheduleId),
+      getScheduleJoins(scheduleId, driver.driverId),
+    ])
+    setSelected(fresh)
+    setJoins(page.content)
+    setSchedules((list) =>
+      list.map((s) => (s.scheduleId === fresh.scheduleId ? fresh : s)),
+    )
+    return fresh
+  }
+
+  const decide = async (joinId: number, action: 'approve' | 'reject') => {
+    if (!driver || !selected) return
+    setBusyJoinId(joinId)
+    setActionError(null)
+    try {
+      if (action === 'approve') await approveJoin(joinId, driver.driverId)
+      else await rejectJoin(joinId, driver.driverId)
+      const fresh = await refreshSelected(selected.scheduleId)
+      if (fresh && Number(fresh.remainingPassengerCount) === 0) {
+        setTimeout(() => setScreen(5), 700)
+      }
+    } catch (e) {
+      setActionError(
+        e instanceof Error ? e.message : 'Could not update the request.',
+      )
+    } finally {
+      setBusyJoinId(null)
+    }
   }
 
   if (screen === 0) {
     return (
       <DriverHome
-        hasNewRequest={hasNewRequest}
+        pendingCount={pendingCount}
+        error={driverError}
         onAddRoute={() => setScreen(1)}
         onMyRoutes={() => setScreen(2)}
         onHome={onHome}
@@ -62,23 +182,11 @@ export default function DriverFlow({ onHome }: { onHome: () => void }) {
   if (screen === 1) {
     return (
       <AddRouteScreen
-        dateChip={dateChip}
-        setDateChip={setDateChip}
-        selectedDate={selectedDate}
-        setSelectedDate={setSelectedDate}
-        dateLabel={dateLabel}
-        seats={seats}
-        setSeats={setSeats}
-        ac={ac}
-        setAc={setAc}
-        year={year}
-        setYear={setYear}
-        bags={bags}
-        setBags={setBags}
-        prices={prices}
-        bumpPrice={bumpPrice}
+        driver={driver}
+        publishing={publishing}
+        error={publishError}
         onBack={() => setScreen(0)}
-        onPublish={() => setScreen(2)}
+        onPublish={publish}
       />
     )
   }
@@ -86,27 +194,26 @@ export default function DriverFlow({ onHome }: { onHome: () => void }) {
   if (screen === 2) {
     return (
       <RoutesListScreen
-        approved={approved}
-        hasNewRequest={hasNewRequest}
-        dateLabel={dateLabel}
-        year={year}
+        schedules={schedules}
+        loading={schedulesLoading}
         onBack={() => setScreen(0)}
-        onOpenActive={() => setScreen(approved ? 5 : 3)}
+        onOpen={openSchedule}
         onAddRoute={() => setScreen(1)}
       />
     )
   }
 
-  if (screen === 3) {
+  if (screen === 3 && selected) {
     return (
       <RequestsScreen
-        approved={approved}
-        requestGone={requestGone}
-        prices={prices}
-        dateLabel={dateLabel}
+        schedule={selected}
+        joins={joins}
+        loading={joinsLoading}
+        busyJoinId={busyJoinId}
+        error={actionError}
         onBack={() => setScreen(2)}
-        onDecline={() => setRequestGone(true)}
-        onApprove={approve}
+        onApprove={(id) => decide(id, 'approve')}
+        onReject={(id) => decide(id, 'reject')}
         onChat={() => setScreen(4)}
       />
     )
@@ -125,19 +232,19 @@ export default function DriverFlow({ onHome }: { onHome: () => void }) {
           {
             id: 1,
             mine: false,
-            text: 'Hi! Is the front seat still free?',
-            sub: 'Салом! Ҷои пеш холӣ аст?',
+            text: 'Hi! Are there still free places?',
+            sub: 'Салом! Ҷойҳои холӣ ҳастанд?',
           },
           {
             id: 2,
             mine: true,
-            text: 'Ҳа, холӣ аст. 400 сомонӣ.',
-            sub: 'Yes, it is free. 400 somoni.',
+            text: 'Ҳа, холӣ аст.',
+            sub: 'Yes, there are free places.',
           },
           {
             id: 3,
             mine: false,
-            text: 'Great, I will request it now.',
+            text: 'Great, I will request now.',
             sub: 'Хуб, ҳозир дархост мекунам.',
           },
         ]}
@@ -147,5 +254,23 @@ export default function DriverFlow({ onHome }: { onHome: () => void }) {
     )
   }
 
-  return <CarFullScreen earnings={earnings} onMyRoutes={() => setScreen(2)} />
+  if (screen === 5 && selected) {
+    return (
+      <CarFullScreen
+        schedule={selected}
+        joins={joins}
+        onMyRoutes={() => setScreen(2)}
+      />
+    )
+  }
+
+  return (
+    <DriverHome
+      pendingCount={pendingCount}
+      error={driverError}
+      onAddRoute={() => setScreen(1)}
+      onMyRoutes={() => setScreen(2)}
+      onHome={onHome}
+    />
+  )
 }

@@ -1,13 +1,22 @@
 import CheckBadge from '../components/CheckBadge'
+import { initialsOf } from '../api'
+import type { RideJoinResponse, RideScheduleResponse } from '../api'
 
-/* D5 · Мошин пур шуд — car full: earnings summary & fellow travelers */
+/* D5 · Мошин пур шуд — car full: real earnings & approved passengers */
 export default function CarFullScreen({
-  earnings,
+  schedule,
+  joins,
   onMyRoutes,
 }: {
-  earnings: number
+  schedule: RideScheduleResponse
+  joins: RideJoinResponse[]
   onMyRoutes: () => void
 }) {
+  const approved = joins.filter((j) => j.status === 'APPROVED')
+  const earnings = approved.reduce((sum, j) => sum + j.totalFare, 0)
+  const filled = Number(schedule.approvedPassengerCount)
+  const total = Number(schedule.maxPassengerCount)
+
   return (
     <div className="screen">
       <div className="confirm-head">
@@ -19,12 +28,16 @@ export default function CarFullScreen({
       <div className="card summary-card">
         <div className="summary-row">
           <span>Ҷойҳо · Seats</span>
-          <strong>6 / 6</strong>
+          <strong>
+            {filled} / {total}
+          </strong>
         </div>
         <div className="divider" />
         <div className="summary-row">
           <span>Даромад · Earnings</span>
-          <strong className="teal">{earnings.toLocaleString('ru-RU')} сомонӣ</strong>
+          <strong className="teal">
+            {earnings.toLocaleString('ru-RU')} сомонӣ
+          </strong>
         </div>
         <div className="divider" />
         <div className="summary-row">
@@ -33,14 +46,18 @@ export default function CarFullScreen({
         </div>
       </div>
 
-      <p className="section-label">Ҳамсафарон · Fellow travelers</p>
-      <div className="avatar-row">
-        {['АМ', 'ЗР', 'ҶТ', 'SM', 'МЗ', 'ДК'].map((p) => (
-          <span key={p} className={`avatar lg${p === 'SM' ? ' amber' : ''}`}>
-            {p}
-          </span>
-        ))}
-      </div>
+      {approved.length > 0 && (
+        <>
+          <p className="section-label">Ҳамсафарон · Fellow travelers</p>
+          <div className="avatar-row">
+            {approved.map((j) => (
+              <span key={j.joinId} className="avatar lg amber">
+                {initialsOf(j.user.name)}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
 
       <button className="cta">Сафарро оғоз кунед</button>
       <p className="cta-caption">Start the trip</p>

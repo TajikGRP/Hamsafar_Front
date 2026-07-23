@@ -1,46 +1,70 @@
-import type { Dispatch, SetStateAction } from 'react'
+import { useState } from 'react'
 import Calendar from '../components/Calendar'
-import type { SeatPrices } from '../data'
+import { TJ_MONTHS, cityLabel } from '../data'
+import type { DriverResponse } from '../api'
 
-/* D1 · Масири нав — create a route: date (chips + calendar),
-   seats, vehicle info (A/C, year, luggage) and per-seat prices */
+/* D1 · Масири нав — create a real ride schedule:
+   route, date (chips + calendar), departure hour, single per-seat price.
+   Seat capacity comes from the driver's registered vehicle. */
 export default function AddRouteScreen({
-  dateChip,
-  setDateChip,
-  selectedDate,
-  setSelectedDate,
-  dateLabel,
-  seats,
-  setSeats,
-  ac,
-  setAc,
-  year,
-  setYear,
-  bags,
-  setBags,
-  prices,
-  bumpPrice,
+  driver,
+  publishing,
+  error,
   onBack,
   onPublish,
 }: {
-  dateChip: number
-  setDateChip: (i: number) => void
-  selectedDate: Date | null
-  setSelectedDate: (d: Date) => void
-  dateLabel: string
-  seats: number
-  setSeats: Dispatch<SetStateAction<number>>
-  ac: boolean
-  setAc: Dispatch<SetStateAction<boolean>>
-  year: number
-  setYear: Dispatch<SetStateAction<number>>
-  bags: number
-  setBags: Dispatch<SetStateAction<number>>
-  prices: SeatPrices
-  bumpPrice: (k: keyof SeatPrices, d: number) => void
+  driver: DriverResponse | null
+  publishing: boolean
+  error: string | null
   onBack: () => void
-  onPublish: () => void
+  onPublish: (opts: {
+    fromCity: string
+    toCity: string
+    date: Date
+    hour: number
+    price: number
+    description: string
+  }) => void
 }) {
+  const [fromCity, setFromCity] = useState('Dushanbe')
+  const [toCity, setToCity] = useState('Khorog')
+  const [dateChip, setDateChip] = useState(0)
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [hour, setHour] = useState(6)
+  const [price, setPrice] = useState(350)
+  const [ac, setAc] = useState(true)
+
+  const swap = () => {
+    setFromCity(toCity)
+    setToCity(fromCity)
+  }
+
+  const chosenDate = (): Date => {
+    const d = new Date()
+    if (dateChip === 1) d.setDate(d.getDate() + 1)
+    if (dateChip === 2 && selectedDate) return new Date(selectedDate)
+    return d
+  }
+
+  const dateLabel =
+    dateChip === 0
+      ? 'Имрӯз'
+      : dateChip === 1
+        ? 'Фардо'
+        : selectedDate
+          ? `${selectedDate.getDate()} ${TJ_MONTHS[selectedDate.getMonth()].toLowerCase()}`
+          : 'Дигар рӯз'
+
+  const publish = () =>
+    onPublish({
+      fromCity,
+      toCity,
+      date: chosenDate(),
+      hour,
+      price,
+      description: `${ac ? 'A/C' : 'No A/C'} · departure ${String(hour).padStart(2, '0')}:00`,
+    })
+
   return (
     <div className="screen">
       <button className="back-btn home" onClick={onBack} aria-label="Back">
@@ -56,9 +80,9 @@ export default function AddRouteScreen({
           <span className="pin pin-teal" />
           <div className="field">
             <span className="field-label">Аз · From</span>
-            <span className="field-value">Душанбе (Dushanbe)</span>
+            <span className="field-value">{cityLabel(fromCity)}</span>
           </div>
-          <button className="swap-btn" aria-label="Swap">
+          <button className="swap-btn" onClick={swap} aria-label="Swap">
             ⇅
           </button>
         </div>
@@ -67,7 +91,7 @@ export default function AddRouteScreen({
           <span className="pin pin-amber" />
           <div className="field">
             <span className="field-label">Ба · To</span>
-            <span className="field-value">Хоруғ (Khorog)</span>
+            <span className="field-value">{cityLabel(toCity)}</span>
           </div>
         </div>
       </div>
@@ -93,22 +117,24 @@ export default function AddRouteScreen({
 
       <div className="card stepper-card">
         <div className="stepper-labels">
-          <strong>Ҷойҳо</strong>
-          <span>Seats</span>
+          <strong>Соати сафар</strong>
+          <span>Departure hour</span>
         </div>
         <div className="stepper">
           <button
             className="step-btn"
-            onClick={() => setSeats((s) => Math.max(1, s - 1))}
-            aria-label="Fewer seats"
+            onClick={() => setHour((h) => Math.max(0, h - 1))}
+            aria-label="Earlier"
           >
             −
           </button>
-          <strong className="step-value">{seats}</strong>
+          <strong className="step-value">
+            {String(hour).padStart(2, '0')}:00
+          </strong>
           <button
             className="step-btn primary"
-            onClick={() => setSeats((s) => Math.min(8, s + 1))}
-            aria-label="More seats"
+            onClick={() => setHour((h) => Math.min(23, h + 1))}
+            aria-label="Later"
           >
             +
           </button>
@@ -122,7 +148,31 @@ export default function AddRouteScreen({
             <strong>Мошин</strong>
             <small>Car</small>
           </span>
-          <strong className="v-value">Toyota Land Cruiser</strong>
+          <strong className="v-value">
+            {driver
+              ? `${driver.manufacturer ?? ''} ${driver.modelName}`.trim()
+              : 'Loading…'}
+          </strong>
+        </div>
+        <div className="divider" />
+        <div className="vehicle-row">
+          <span className="v-label">
+            <strong>Ҷойҳо</strong>
+            <small>Seats (from vehicle)</small>
+          </span>
+          <strong className="v-value">
+            {driver ? driver.passengerCapacity : '–'}
+          </strong>
+        </div>
+        <div className="divider" />
+        <div className="vehicle-row">
+          <span className="v-label">
+            <strong>Ҷойи бағоҷ</strong>
+            <small>Luggage · bags</small>
+          </span>
+          <strong className="v-value">
+            {driver ? driver.maxLuggageCount : '–'}
+          </strong>
         </div>
         <div className="divider" />
         <div className="vehicle-row">
@@ -140,84 +190,36 @@ export default function AddRouteScreen({
             <i />
           </button>
         </div>
-        <div className="divider" />
-        <div className="vehicle-row">
-          <span className="v-label">
-            <strong>Соли мошин</strong>
-            <small>Year</small>
-          </span>
-          <span className="mini-stepper">
-            <button onClick={() => setYear((y) => Math.max(2000, y - 1))} aria-label="Older">
-              −
-            </button>
-            <strong>{year}</strong>
-            <button
-              className="primary"
-              onClick={() => setYear((y) => Math.min(2026, y + 1))}
-              aria-label="Newer"
-            >
-              +
-            </button>
-          </span>
-        </div>
-        <div className="divider" />
-        <div className="vehicle-row">
-          <span className="v-label">
-            <strong>Ҷойи бағоҷ</strong>
-            <small>Luggage · bags</small>
-          </span>
-          <span className="mini-stepper">
-            <button onClick={() => setBags((b) => Math.max(0, b - 1))} aria-label="Fewer bags">
-              −
-            </button>
-            <strong>{bags}</strong>
-            <button
-              className="primary"
-              onClick={() => setBags((b) => Math.min(10, b + 1))}
-              aria-label="More bags"
-            >
-              +
-            </button>
-          </span>
-        </div>
       </div>
 
       <p className="section-label">Нарх барои ҳар ҷой · Сомонӣ</p>
       <div className="card price-card">
-        {(
-          [
-            { k: 'front', tj: 'Пеш', en: 'Front', box: 'selected' },
-            { k: 'm1', tj: 'Миёна', en: 'Middle', box: 'available' },
-            { k: 'b2', tj: 'Қафо', en: 'Back', box: 'available' },
-          ] as const
-        ).map((row, i) => (
-          <div key={row.k}>
-            {i > 0 && <div className="divider" />}
-            <div className="price-row">
-              <i className={`lg-box ${row.box}`} />
-              <span>
-                {row.tj} · {row.en}
-              </span>
-              <span className="mini-stepper">
-                <button onClick={() => bumpPrice(row.k, -10)} aria-label="Lower price">
-                  −
-                </button>
-                <strong>{prices[row.k]}</strong>
-                <button
-                  className="primary"
-                  onClick={() => bumpPrice(row.k, 10)}
-                  aria-label="Raise price"
-                >
-                  +
-                </button>
-              </span>
-            </div>
-          </div>
-        ))}
+        <div className="price-row">
+          <span>Нарх · Price per seat</span>
+          <span className="mini-stepper">
+            <button onClick={() => setPrice((p) => Math.max(50, p - 10))} aria-label="Lower price">
+              −
+            </button>
+            <strong>{price}</strong>
+            <button
+              className="primary"
+              onClick={() => setPrice((p) => p + 10)}
+              aria-label="Raise price"
+            >
+              +
+            </button>
+          </span>
+        </div>
       </div>
 
-      <button className="cta" onClick={onPublish}>
-        Эълон кардан
+      {error && (
+        <p className="footer-note strong">
+          Хатогӣ: <span className="muted">{error}</span>
+        </p>
+      )}
+
+      <button className="cta" onClick={publish} disabled={publishing || !driver}>
+        {publishing ? 'Интизор…' : 'Эълон кардан'}
       </button>
       <p className="cta-caption">Publish route</p>
 
