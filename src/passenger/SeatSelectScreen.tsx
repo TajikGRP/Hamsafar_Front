@@ -1,19 +1,36 @@
+import { useState } from 'react'
 import PhoneIcon from '../components/PhoneIcon'
-import { SEAT_INFO, DRIVER_PHONE, MAPS_URL, telHref } from '../data'
-import type { SeatId } from '../data'
+import Dots from '../components/Dots'
+import { mapsUrlFor, telHref } from '../data'
+import { fmtDateTime, initialsOf } from '../api'
+import type { RideScheduleResponse } from '../api'
 
-/* P3 · Choose your seat — interactive seat map, meeting point, call driver */
-export default function SeatSelectScreen({
-  seat,
-  onSeat,
+/* P3 · Booking — seats are not assigned; you book a number of places
+   in the car and sit where is free (per user decision). */
+export default function BookingScreen({
+  schedule,
+  maxPassengers,
+  requesting,
+  error,
   onBack,
   onRequest,
 }: {
-  seat: SeatId
-  onSeat: (s: SeatId) => void
+  schedule: RideScheduleResponse
+  maxPassengers: number
+  requesting: boolean
+  error: string | null
   onBack: () => void
-  onRequest: () => void
+  onRequest: (passengerCount: number, luggageCount: number) => void
 }) {
+  const [count, setCount] = useState(1)
+  const [bags, setBags] = useState(1)
+
+  const driver = schedule.driver
+  const vehicle = driver.vehicle
+  const total = schedule.fareAmount * count
+  const filled = Number(schedule.approvedPassengerCount)
+  const capacity = Number(schedule.maxPassengerCount)
+
   return (
     <div className="screen has-bottom-bar">
       <div className="top-bar">
@@ -21,70 +38,94 @@ export default function SeatSelectScreen({
           ‹
         </button>
         <div className="top-bar-title">
-          <strong>Choose your seat</strong>
+          <strong>Book your places</strong>
         </div>
       </div>
 
       <div className="driver-row">
-        <span className="avatar lg">BS</span>
+        <span className="avatar lg">{initialsOf(driver.name)}</span>
         <div>
-          <strong>Bakhtiyor S.</strong>
-          <span>★ 4.8 · Toyota Land Cruiser · 5124 BS 01</span>
-          <span className="phone-line">{DRIVER_PHONE}</span>
+          <strong>{driver.name}</strong>
+          <span>
+            {vehicle
+              ? `${vehicle.manufacturer ?? ''} ${vehicle.modelName} · ${vehicle.licensePlate}`.trim()
+              : 'Car'}
+          </span>
+          <span className="phone-line">{driver.driverPhone}</span>
         </div>
-        <a className="call-btn" href={telHref(DRIVER_PHONE)} aria-label="Call driver">
+        <a
+          className="call-btn"
+          href={telHref(driver.driverPhone)}
+          aria-label="Call driver"
+        >
           <PhoneIcon />
         </a>
       </div>
 
       <div className="card seat-card">
-        <div className="car-body">
-          <svg className="windshield" viewBox="0 0 140 20" aria-hidden="true">
-            <path d="M0 18 Q70 0 140 18" fill="none" stroke="#DDE7E8" strokeWidth="3" />
-          </svg>
-          <div className="seat-row">
-            <div className="seat driver-seat">
-              <span className="wheel" />
-              <span className="seat-caption">Driver</span>
-            </div>
-            <button
-              className={`seat${seat === 'front' ? ' selected' : ''}`}
-              onClick={() => onSeat('front')}
-            >
-              <strong>400</strong>
-              <small>Front</small>
-            </button>
-          </div>
-          <div className="seat-row three">
-            <button
-              className={`seat${seat === 'm1' ? ' selected' : ''}`}
-              onClick={() => onSeat('m1')}
-            >
-              <strong>350</strong>
-            </button>
-            <div className="seat taken">AM</div>
-            <div className="seat taken">ZR</div>
-          </div>
-          <div className="seat-row two">
-            <div className="seat taken">JT</div>
-            <button
-              className={`seat${seat === 'b2' ? ' selected' : ''}`}
-              onClick={() => onSeat('b2')}
-            >
-              <strong>300</strong>
-            </button>
-          </div>
+        <div className="seat-status-head">
+          <strong>{fmtDateTime(schedule.meetingAt)}</strong>
+          <span className="pill-teal">
+            {filled}/{capacity} filled
+          </span>
+        </div>
+        <div className="ride-fill">
+          <Dots filled={filled} total={capacity} />
+          <span>
+            {schedule.remainingPassengerCount} place
+            {schedule.remainingPassengerCount === 1 ? '' : 's'} left
+          </span>
         </div>
         <div className="legend">
-          <span>
-            <i className="lg-box available" /> Available
-          </span>
-          <span>
-            <i className="lg-box selected" /> Selected
-          </span>
-          <span>
-            <i className="lg-box taken" /> Taken
-          </span>
+          <span>Seats are not assigned — sit where is free.</span>
+        </div>
+      </div>
+
+      <div className="card stepper-card">
+        <div className="stepper-labels">
+          <strong>Passengers</strong>
+          <span>{schedule.fareAmount} TJS each</span>
+        </div>
+        <div className="stepper">
+          <button
+            className="step-btn"
+            onClick={() => setCount((c) => Math.max(1, c - 1))}
+            aria-label="Fewer passengers"
+          >
+            −
+          </button>
+          <strong className="step-value">{count}</strong>
+          <button
+            className="step-btn primary"
+            onClick={() => setCount((c) => Math.min(maxPassengers, c + 1))}
+            aria-label="More passengers"
+          >
+            +
+          </button>
+        </div>
+      </div>
+
+      <div className="card stepper-card">
+        <div className="stepper-labels">
+          <strong>Bags</strong>
+          <span>Luggage</span>
+        </div>
+        <div className="stepper">
+          <button
+            className="step-btn"
+            onClick={() => setBags((b) => Math.max(0, b - 1))}
+            aria-label="Fewer bags"
+          >
+            −
+          </button>
+          <strong className="step-value">{bags}</strong>
+          <button
+            className="step-btn primary"
+            onClick={() => setBags((b) => Math.min(8, b + 1))}
+            aria-label="More bags"
+          >
+            +
+          </button>
         </div>
       </div>
 
@@ -94,20 +135,36 @@ export default function SeatSelectScreen({
         </div>
         <div className="meet-info">
           <span className="field-label">Meeting point</span>
-          <strong>Автостансияи Бадахшон (Badakhshan Avtostansiya)</strong>
-          <a href={MAPS_URL} target="_blank" rel="noreferrer">
+          <strong>{schedule.meetingPlaceName ?? schedule.meetingAddress}</strong>
+          <a
+            href={mapsUrlFor(schedule.meetingAddress)}
+            target="_blank"
+            rel="noreferrer"
+          >
             Open in Google Maps ↗
           </a>
         </div>
       </div>
 
+      {error && (
+        <p className="footer-note strong">
+          Request failed: <span className="muted">{error}</span>
+        </p>
+      )}
+
       <div className="bottom-bar">
         <div className="bottom-price">
-          <span>{SEAT_INFO[seat].label}</span>
-          <strong>{SEAT_INFO[seat].price} TJS · cash</strong>
+          <span>
+            {count} place{count > 1 ? 's' : ''}
+          </span>
+          <strong>{total} TJS · cash</strong>
         </div>
-        <button className="cta compact" onClick={onRequest}>
-          Request seat
+        <button
+          className="cta compact"
+          disabled={requesting}
+          onClick={() => onRequest(count, bags)}
+        >
+          {requesting ? 'Sending…' : 'Request places'}
         </button>
       </div>
     </div>

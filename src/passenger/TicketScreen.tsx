@@ -1,67 +1,100 @@
 import CheckBadge from '../components/CheckBadge'
-import { SEAT_INFO, DRIVER_PHONE, MAPS_URL, cityLabel, telHref } from '../data'
-import type { SeatId } from '../data'
+import { mapsUrlFor, telHref } from '../data'
+import { fmtDateTime } from '../api'
+import type { RideJoinResponse, RideScheduleResponse } from '../api'
 
-/* P4 · Ticket — confirmation with where / who / pay info */
+/* P4 · Ticket — real booking request from the backend.
+   Requests start as PENDING (or WAITLISTED) until the driver approves. */
 export default function TicketScreen({
-  fromCity,
-  toCity,
-  seat,
+  schedule,
+  join,
   onChat,
   onRestart,
 }: {
-  fromCity: string
-  toCity: string
-  seat: SeatId
+  schedule: RideScheduleResponse
+  join: RideJoinResponse
   onChat: () => void
   onRestart: () => void
 }) {
+  const driver = schedule.driver
+  const vehicle = driver.vehicle
+
+  const pending = join.status === 'PENDING'
+  const waitlisted = join.status === 'WAITLISTED'
+
+  const headline = pending
+    ? 'Request sent!'
+    : waitlisted
+      ? 'Added to waitlist'
+      : join.status === 'APPROVED'
+        ? 'Seat confirmed!'
+        : `Status: ${join.status}`
+
+  const subline = pending
+    ? 'The driver will confirm your places shortly.'
+    : waitlisted
+      ? `You are #${join.waitlistPosition ?? '–'} on the waitlist.`
+      : 'Show this ticket at the stand.'
+
   return (
     <div className="screen">
       <div className="confirm-head">
         <CheckBadge />
-        <h2>Seat confirmed!</h2>
-        <p>Show this ticket at the stand.</p>
+        <h2>{headline}</h2>
+        <p>{subline}</p>
       </div>
 
       <div className="card ticket">
         <div className="ticket-route">
-          <strong>{cityLabel(fromCity)}</strong>
+          <strong>{join.meetingPlaceName ?? join.meetingAddress}</strong>
           <span>→</span>
-          <strong>{cityLabel(toCity)}</strong>
+          <strong>{join.destinationPlaceName ?? join.destinationAddress}</strong>
         </div>
-        <p className="ticket-sub">Wed, Jul 22 · departs when full</p>
+        <p className="ticket-sub">
+          {fmtDateTime(join.meetingAt)} · departs when full
+        </p>
         <span className="badge-amber">
-          {SEAT_INFO[seat].label} · {SEAT_INFO[seat].price} TJS
+          {join.passengerCount} place{join.passengerCount > 1 ? 's' : ''} ·{' '}
+          {join.totalFare} TJS · {join.status.toLowerCase()}
         </span>
 
         <div className="perforation" />
 
         <div className="ticket-section">
           <span className="field-label">Where</span>
-          <strong>Автостансияи Бадахшон (Badakhshan Avtostansiya)</strong>
-          <a href={MAPS_URL} target="_blank" rel="noreferrer">
+          <strong>{join.meetingPlaceName ?? join.meetingAddress}</strong>
+          <a
+            href={mapsUrlFor(join.meetingAddress)}
+            target="_blank"
+            rel="noreferrer"
+          >
             Open map ↗
           </a>
         </div>
         <div className="ticket-section">
           <span className="field-label">Who</span>
-          <strong>Bakhtiyor S. · white Land Cruiser</strong>
-          <p>Plate 5124 BS 01 · ★ 4.8</p>
-          <a href={telHref(DRIVER_PHONE)}>Call {DRIVER_PHONE} ✆</a>
+          <strong>
+            {driver.name}
+            {vehicle ? ` · ${vehicle.manufacturer ?? ''} ${vehicle.modelName}` : ''}
+          </strong>
+          {vehicle && <p>Plate {vehicle.licensePlate}</p>}
+          <a href={telHref(driver.driverPhone)}>Call {driver.driverPhone} ✆</a>
         </div>
         <div className="ticket-section">
           <span className="field-label">Pay</span>
-          <strong>{SEAT_INFO[seat].price} TJS in cash to the driver</strong>
+          <strong>{join.totalFare} TJS in cash to the driver</strong>
           <p>No online payment — you pay on the spot</p>
         </div>
       </div>
 
-      <button className="cta">Save ticket · works offline</button>
       <button className="text-link" onClick={onChat}>
-        Message Bakhtiyor — auto-translated
+        Message {driver.name.split(' ')[0]} — auto-translated
       </button>
-      <p className="footer-note">We'll notify you when the car is full.</p>
+      <p className="footer-note">
+        {pending || waitlisted
+          ? 'We’ll notify you when the driver approves.'
+          : 'We’ll notify you when the car is full.'}
+      </p>
       <button className="text-link muted" onClick={onRestart}>
         ‹ Back to search
       </button>

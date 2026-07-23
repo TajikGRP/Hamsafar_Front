@@ -1,11 +1,13 @@
 /* D0 · Driver home — choose between creating a route and viewing bookings */
 export default function DriverHome({
-  hasNewRequest,
+  pendingCount,
+  error,
   onAddRoute,
   onMyRoutes,
   onHome,
 }: {
-  hasNewRequest: boolean
+  pendingCount: number
+  error: string | null
   onAddRoute: () => void
   onMyRoutes: () => void
   onHome: () => void
@@ -19,6 +21,12 @@ export default function DriverHome({
         <h2>Ронанда</h2>
         <p>Driver · What would you like to do?</p>
       </div>
+
+      {error && (
+        <p className="footer-note strong">
+          Server error: <span className="muted">{error}</span>
+        </p>
+      )}
 
       <button className="card role-card" onClick={onAddRoute}>
         <span className="role-icon">
@@ -61,7 +69,9 @@ export default function DriverHome({
           <strong>Сафарҳои ман</strong>
           <span>My routes · booking status</span>
         </span>
-        {hasNewRequest && <span className="badge-amber">1 нав</span>}
+        {pendingCount > 0 && (
+          <span className="badge-amber">{pendingCount} нав</span>
+        )}
         <span className="role-arrow">›</span>
       </button>
     </div>

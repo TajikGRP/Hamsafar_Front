@@ -1,10 +1,15 @@
 import Mountains from '../components/Mountains'
 import { cityLabel } from '../data'
+import type { DateFilter } from './PassengerFlow'
 
-/* P1 · Search — route, date, seats + price transparency */
+/* P1 · Search — route, date filter, passenger count */
 export default function SearchScreen({
   fromCity,
   toCity,
+  dateFilter,
+  onDateFilter,
+  passengers,
+  onPassengers,
   onSwap,
   onPickRoute,
   onFindSeat,
@@ -12,11 +17,21 @@ export default function SearchScreen({
 }: {
   fromCity: string
   toCity: string
+  dateFilter: DateFilter
+  onDateFilter: (f: DateFilter) => void
+  passengers: number
+  onPassengers: (n: number) => void
   onSwap: () => void
   onPickRoute: (from: string, to: string) => void
   onFindSeat: () => void
   onHome: () => void
 }) {
+  const dateOptions: { key: DateFilter; label: string }[] = [
+    { key: 'any', label: 'Any date' },
+    { key: 'today', label: 'Today' },
+    { key: 'tomorrow', label: 'Tomorrow' },
+  ]
+
   return (
     <div className="screen">
       <Mountains />
@@ -52,15 +67,38 @@ export default function SearchScreen({
         <div className="divider" />
         <div className="field-split">
           <div className="field">
-            <span className="field-label">Date</span>
-            <span className="field-value sm">Wed, Jul 22</span>
-          </div>
-          <div className="vdivider" />
-          <div className="field">
             <span className="field-label">Seats</span>
-            <span className="field-value sm">1 passenger</span>
+            <span className="mini-stepper">
+              <button
+                onClick={() => onPassengers(Math.max(1, passengers - 1))}
+                aria-label="Fewer passengers"
+              >
+                −
+              </button>
+              <strong>{passengers}</strong>
+              <button
+                className="primary"
+                onClick={() => onPassengers(Math.min(6, passengers + 1))}
+                aria-label="More passengers"
+              >
+                +
+              </button>
+            </span>
           </div>
         </div>
+      </div>
+
+      <p className="section-label">Date</p>
+      <div className="chip-row">
+        {dateOptions.map((o) => (
+          <button
+            key={o.key}
+            className={`chip${dateFilter === o.key ? ' active' : ''}`}
+            onClick={() => onDateFilter(o.key)}
+          >
+            {o.label}
+          </button>
+        ))}
       </div>
 
       <button className="cta" onClick={onFindSeat}>

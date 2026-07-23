@@ -1,53 +1,6 @@
-/* Shared types & constants (prototype mock data) */
+/* Shared types & constants */
 
 export type Role = 'passenger' | 'driver'
-export type SeatId = 'front' | 'm1' | 'b2'
-export type SeatPrices = Record<SeatId, number>
-
-export const SEAT_INFO: Record<SeatId, { price: number; label: string }> = {
-  front: { price: 400, label: 'Front seat' },
-  m1: { price: 350, label: 'Middle seat' },
-  b2: { price: 300, label: 'Back seat' },
-}
-
-export const RIDES = [
-  {
-    id: 'bs',
-    initials: 'BS',
-    name: 'Bakhtiyor S.',
-    rating: 4.8,
-    rides: 56,
-    from: 300,
-    filled: 3,
-    total: 6,
-    car: 'Land Cruiser · Бадахшон (Badakhshan) stand',
-    badge: 'Filling fast' as string | null,
-  },
-  {
-    id: 'fk',
-    initials: 'FK',
-    name: 'Firdavs K.',
-    rating: 4.6,
-    rides: 31,
-    from: 280,
-    filled: 2,
-    total: 7,
-    car: 'Starex minivan · Бадахшон (Badakhshan) stand',
-    badge: null as string | null,
-  },
-  {
-    id: 'kn',
-    initials: 'KN',
-    name: 'Karim N.',
-    rating: 4.9,
-    rides: 112,
-    from: 300,
-    filled: 1,
-    total: 6,
-    car: 'Land Cruiser · leaves tomorrow',
-    badge: null as string | null,
-  },
-]
 
 /* Place names: always shown as "Тоҷикӣ (English)" */
 export const CITY_TJ: Record<string, string> = {
@@ -59,12 +12,36 @@ export const CITY_TJ: Record<string, string> = {
 
 export const cityLabel = (en: string) => `${CITY_TJ[en] ?? en} (${en})`
 
-export const DRIVER_PHONE = '+992 93 555 0117'
+/* Meeting stands per departure city (used when a driver publishes a route) */
+export const CITY_STAND: Record<string, { address: string; placeName: string }> = {
+  Dushanbe: {
+    address: 'Badakhshan Avtostansiya, Dushanbe',
+    placeName: 'Автостансияи Бадахшон (Badakhshan Avtostansiya)',
+  },
+  Khorog: {
+    address: 'Central bus stand, Khorog',
+    placeName: 'Автостансияи марказӣ, Хоруғ (Khorog central stand)',
+  },
+  Kulob: {
+    address: 'Central bus stand, Kulob',
+    placeName: 'Автостансияи Кӯлоб (Kulob stand)',
+  },
+  Khujand: {
+    address: 'Central bus stand, Khujand',
+    placeName: 'Автостансияи Хуҷанд (Khujand stand)',
+  },
+}
+
+export const standFor = (city: string) =>
+  CITY_STAND[city] ?? { address: city, placeName: city }
 
 export const telHref = (phone: string) => `tel:${phone.replace(/\s/g, '')}`
 
 export const MAPS_URL =
   'https://maps.google.com/?q=Badakhshan+bus+station+Dushanbe'
+
+export const mapsUrlFor = (address: string) =>
+  `https://maps.google.com/?q=${encodeURIComponent(address)}`
 
 /* Calendar labels (Tajik with English month names) */
 export const TJ_MONTHS = [
